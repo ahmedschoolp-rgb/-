@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الفحص (الذكاء الكامل)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #10b981;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .scroll-box {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
+
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">نظام فحص السيارات</h1>
+            <p class="text-gray-600">تعرف تلقائي على (الأنواع + الألوان) باستخدام القوائم الذكية</p>
+        </div>
+
+        <!-- Main Container -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+
+            <div class="p-6 md:p-8 space-y-8">
+
+                <!-- 1. Upload Master -->
+                <div class="bg-blue-50 rounded-lg p-6 border border-blue-100">
+                    <div class="flex items-center gap-3 mb-4 border-b border-blue-200 pb-2">
+                        <span
+                            class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">1</span>
+                        <h2 class="font-bold text-lg text-blue-900">ملف الداتا الرئيسي</h2>
+                    </div>
+
+                    <input type="file" id="masterFile"
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer mb-4">
+
+                    <div id="sheetSelectionArea"
+                        class="hidden mt-4 bg-white p-3 rounded border border-blue-200 shadow-sm">
+                        <label class="block text-sm font-bold text-blue-800 mb-2">اختر شيت البيانات:</label>
+                        <select id="sheetSelect"
+                            class="w-full p-2 border border-blue-300 rounded bg-gray-50 font-bold text-blue-900"></select>
+                    </div>
+
+                    <div id="masterConfig" class="hidden mt-6">
+                        <p class="font-bold text-blue-900 mb-2 text-sm">تأكد أن العمود الأول (اللوحة) محدد:</p>
+                        <div id="masterColsList" class="scroll-box space-y-2 border-blue-200">Loading...</div>
+                    </div>
+                </div>
+
+                <!-- 2. Wanted List -->
+                <div class="bg-red-50 rounded-lg p-6 border border-red-100">
+                    <div class="flex items-center gap-3 mb-4 border-b border-red-200 pb-2">
+                        <span
+                            class="bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">2</span>
+                        <h2 class="font-bold text-lg text-red-900">قائمة المطلوبين</h2>
+                    </div>
+
+                    <input type="file" id="wantedFile"
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer">
+
+                    <!-- Visual Selector for Wanted List -->
+                    <div id="wantedConfig" class="hidden mt-6">
+                        <p class="font-bold text-red-900 mb-2 text-sm">أولاً: البرنامج سيختار عمود اللوحات تلقائياً:</p>
+                        <div id="wantedColsList" class="scroll-box space-y-2 border-red-200 mb-6">Loading...</div>
+
+                        <!-- Auto Detection Status -->
+                        <div
+                            class="bg-green-50 p-4 rounded border border-green-200 shadow-sm flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-green-800 flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    تم التعرف على البيانات (بناءً على قوائم السيارات والألوان)
+                                </h3>
+                                <div id="autoDetectSummary" class="text-xs text-green-700 mt-1">
+                                    جاري التحليل...
+                                </div>
+                            </div>
+                            <button onclick="toggleManualConfig()"
+                                class="text-xs text-gray-500 underline hover:text-gray-800">تعديل يدوياً</button>
+                        </div>
+
+                        <!-- Hidden Manual Config -->
+                        <div id="manualExtraConfig" class="hidden mt-4 bg-white p-4 rounded border border-gray-200">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">عمود الطراز (Mod):</label>
+                                    <select id="wantedModelCol"
+                                        class="w-full p-2 border rounded text-sm bg-gray-50"></select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">عمود النوع (Type):</label>
+                                    <select id="wantedTypeCol"
+                                        class="w-full p-2 border rounded text-sm bg-gray-50"></select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-600 mb-1">عمود اللون
+                                        (Color):</label>
+                                    <select id="wantedColorCol"
+                                        class="w-full p-2 border rounded text-sm bg-gray-50"></select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Action -->
+                <div class="text-center pt-4">
+                    <button onclick="runMatch()" id="runBtn"
+                        class="w-full md:w-2/3 bg-gray-800 hover:bg-gray-900 text-white font-bold py-4 px-10 rounded-xl shadow-lg flex items-center justify-center gap-3 mx-auto disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105">
+                        <span class="text-lg">بدء الفرز (شامل التكرار)</span>
+                        <div id="spinner" class="loader"></div>
+                    </button>
+                    <div id="mainStatus" class="mt-4 font-bold text-gray-600 text-sm"></div>
+                </div>
+
+                <!-- 4. Results -->
+                <div id="resultBox"
+                    class="hidden bg-green-50 rounded-xl shadow-inner p-8 border border-green-200 text-center">
+                    <div class="mb-4">
+                        <svg class="w-16 h-16 text-green-500 mx-auto" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-green-800">تم تجهيز الملف!</h3>
+                    <p id="resultCount" class="text-xl my-3 text-green-700 font-semibold">0</p>
+                    <p class="text-sm text-gray-500 mb-6">تم دمج بيانات المطلوبين (الطراز، النوع، اللون) تلقائياً</p>
+                    <button onclick="downloadResults()"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow flex items-center justify-center gap-2 mx-auto">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        تحميل ملف النتائج (Excel)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-10 pt-6 border-t border-gray-300 text-center pb-8">
+            <p class="text-gray-800 font-bold text-lg mb-3">إعداد وتطوير: م/ أحمد مجدي</p>
+            <div class="flex flex-col md:flex-row justify-center items-center gap-4 text-gray-600">
+                <!-- WhatsApp -->
+                <a href="https://wa.me/201140440601" target="_blank"
+                    class="flex items-center gap-2 hover:text-green-600 hover:bg-green-50 transition-colors bg-white px-5 py-2 rounded-full shadow-sm border border-gray-200">
+                    <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.463 1.065 2.876 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+                    </svg>
+                    <span>01140440601</span>
+                </a>
+
+                <!-- Facebook -->
+                <a href="https://www.facebook.com/ahmedmagdy.yousef.7?rdid=AW0HJmOon98mbVMX&share_url=https%3A%2F%2Fwww.facebook.com%2Fshare%2F17UbctBgsk%2F"
+                    target="_blank"
+                    class="flex items-center gap-2 hover:text-blue-600 hover:bg-blue-50 transition-colors bg-white px-5 py-2 rounded-full shadow-sm border border-gray-200">
+                    <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z" />
+                    </svg>
+                    <span>صفحتي على فيسبوك</span>
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let masterWorkbook = null;
+        let masterMatrix = [];
+        let wantedMatrix = [];
+        let masterMap = new Map();
+        let isMapBuilt = false;
+        let selectedWantedColIndex = -1;
+
+        // --- YOUR KNOWN CAR MODELS LIST ---
+        const knownCarModels = [
+            "COROLLA", "SPORTAGE", "CAMRY", "ACCENT", "YARIS", "RIO", "HIACE", "URBAN",
+            "HILUX", "LC70", "DYNA", "LC200", "SUNNY", "ELANTRA", "RAIZE", "SONATA",
+            "SELTOS", "ZS", "FORTUNER", "PEGAS", "VELOZ", "SORENTO", "BALENO", "ZOOM",
+            "CRETA", "MG", "RUSH", "FRONX", "MONTERO", "SYMBOL", "INNOVA", "SENTRA",
+            "CROSS", "C-HR", "CS85", "RAV", "PRADO", "NQR", "AZERA", "SUBURBAN", "X-TRAIL",
+            "EMGRAND", "I-10", "DZIRE", "CROWN", "AURION", "ALSVIN", "AZKARA", "GRAND",
+            "ERTIGA", "AVALON", "SEQUOIA", "CIAZ", "MG3", "CERATO", "CS35", "NPR", "SPARK",
+            "BJ30", "RX5", "LC300", "TUCSON", "D-MAX", "D60", "MU-X", "KONA", "LX",
+            "CADENZA", "TERRITORY", "FJ", "CAPTIVE", "XTERRA", "X7", "UNI-T", "GROOVE",
+            "DOKKER", "HIGHLANDER", "ACCORD", "MEGANE", "OPTIMA", "MOHAVE", "L200",
+            "BESTUNE", "K8", "RX8", "BINRAY", "RX", "COOLRAY", "TELLURIDE", "CS75", "YUKON",
+            "ES350", "H9", "UX", "SANTA", "H6", "JOLION", "HUNTER", "GS", "MITSUBISHI", "TOYOTA", "HYUNDAI", "KIA", "NISSAN", "FORD", "GMC", "CHEVROLET", "MAZDA", "HONDA"
+        ];
+
+        // --- YOUR KNOWN COLORS LIST (EXPANDED) ---
+        const knownColors = [
+            "WHITE", "BLACK", "SILVER", "GRAY", "GREY", "RED", "BLUE", "BEIGE", "BROWN",
+            "GOLD", "ORANGE", "GREEN", "PEARL", "MICA", "METALLIC", "TITANIUM", "BRONZE",
+            "PLATINUM", "DIAMOND", "TURQUOISE", "LAVENDER", "SCARLETT", "GRAPHITE", "STEEL",
+            "DARK", "LIGHT", "CELESTITE", "SUPER", "SONIC", "QUARTZ", "EMOTIONAL", "PRECIOUS",
+            "CS.", "ME.", "MC", "2 TONE", "2 TONES", "BLONDE", "STREAM", "MADDER", "CEMENT",
+            "أبيض", "اسود", "أسود", "فضي", "رمادي", "رصاصي", "احمر", "أحمر", "ازرق", "أزرق",
+            "بيج", "بني", "ذهبي", "برتقالي", "اخضر", "أخضر", "لؤلؤي", "ثلجي", "كحلي", "عنابي"
+        ];
+
+        function toggleManualConfig() {
+            const el = document.getElementById('manualExtraConfig');
+            el.classList.toggle('hidden');
+        }
+
+        // --- 1. Master File Loading ---
+        document.getElementById('masterFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            setStatus('جاري قراءة الملف...', 'text-blue-600');
+            try {
+                const buffer = await file.arrayBuffer();
+                masterWorkbook = XLSX.read(buffer, { type: 'array' });
+
+                const sheetSelect = document.getElementById('sheetSelect');
+                sheetSelect.innerHTML = '';
+                let targetSheetIndex = 0;
+                masterWorkbook.SheetNames.forEach((name, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.text = name;
+                    sheetSelect.appendChild(opt);
+                    if (name.includes("الداتا") || name.includes("Data")) targetSheetIndex = idx;
+                });
+                sheetSelect.selectedIndex = targetSheetIndex;
+                document.getElementById('sheetSelectionArea').classList.remove('hidden');
+                loadMasterSheet(masterWorkbook.SheetNames[targetSheetIndex]);
+                sheetSelect.onchange = (e) => loadMasterSheet(e.target.value);
+            } catch (err) {
+                console.error(err);
+                setStatus('خطأ في الملف.', 'text-red-600');
+            }
+        });
+
+        function loadMasterSheet(sheetName) {
+            setStatus(`تحميل شيت: ${sheetName}...`, 'text-blue-600');
+            setTimeout(() => {
+                const sheet = masterWorkbook.Sheets[sheetName];
+                masterMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                if (masterMatrix.length < 1) { setStatus("الشيت فارغ!", "text-red-600"); return; }
+                renderMasterColumnsSelector();
+                document.getElementById('masterConfig').classList.remove('hidden');
+                setStatus(`تم تحميل ${masterMatrix.length} صف.`, 'text-green-600');
+                masterMap.clear();
+                isMapBuilt = false;
+            }, 50);
+        }
+
+        // --- Master Columns UI ---
+        function renderMasterColumnsSelector() {
+            const container = document.getElementById('masterColsList');
+            // FEEDBACK: Show ONLY Plate column selector. Hide others.
+            // We will assume standard structure for the rest (Type=2, Note=3, Street=4, District=5, Date=6, Delegate=7)
+            // providing the user promised Plate is column 0.
+
+            container.innerHTML = `
+            <div class="mb-4">
+                <label class="block text-lg font-bold text-blue-900 mb-2">حدد عمود اللوحة (Plate Column):</label>
+                <select id="mc_plate" class="w-full md:w-1/2 border-2 border-blue-500 p-2 rounded-lg bg-white text-lg font-bold text-gray-700 shadow-sm"></select>
+                <p class="text-sm text-gray-500 mt-2">سيتم افتراض باقي البيانات (النوع، الملاحظة، العنوان...) بناءً على الترتيب القياسي للشيت (Plate=0, Type=2, Note=3, Street=4, District=5, Date=6, Delegate=7).</p>
+            </div>
+        `;
+
+            const el = document.getElementById('mc_plate');
+            el.innerHTML = '';
+            let maxCols = 0;
+            masterMatrix.slice(0, 5).forEach(r => maxCols = Math.max(maxCols, r.length));
+
+            for (let i = 0; i < maxCols; i++) {
+                const sample = masterMatrix[0] ? masterMatrix[0][i] : "";
+                const letter = XLSX.utils.encode_col(i);
+                const sampleText = String(sample).substring(0, 15);
+                el.add(new Option(`العمود ${letter} (${sampleText})`, i));
+            }
+
+            // Auto-select Column 0 (A) as per user statement "first column is plate"
+            el.value = 0;
+        }
+        const getVal = (id) => document.getElementById(id) ? document.getElementById(id).value : -1;
+
+        // --- 2. Wanted File Loading ---
+        document.getElementById('wantedFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const buffer = await file.arrayBuffer();
+                const wb = XLSX.read(buffer, { type: 'array' });
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                wantedMatrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                if (wantedMatrix.length > 0) {
+                    renderWantedColumnsSelector();
+                    document.getElementById('wantedConfig').classList.remove('hidden');
+                } else { alert("ملف المطلوبين فارغ!"); }
+            } catch (err) { console.error(err); alert("خطأ في ملف المطلوبين: " + err.message); }
+        });
+
+        function renderWantedColumnsSelector() {
+            const container = document.getElementById('wantedColsList');
+
+            // FEEDBACK: "You determine the Plate, let him determine Color, Type, Model"
+            container.innerHTML = `
+            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <!-- Plate: Auto-detected (Visually distinct) -->
+                     <div class="col-span-1 md:col-span-2">
+                        <label class="block text-sm font-bold text-red-900 mb-1">عمود اللوحة (تم التحديد تلقائياً):</label>
+                        <select id="wc_plate" class="w-full border-2 border-red-500 bg-white p-2 rounded text-red-900 font-bold"></select>
+                        <p class="text-xs text-red-600 mt-1">* قام النظام بتحديد هذا العمود لأنه يحتوي على صيغة لوحات.</p>
+                     </div>
+
+                     <!-- User Choices -->
+                     <div><label class="block text-sm font-bold text-gray-700">عمود الماركة/الطراز (Model):</label><select id="wc_model" class="w-full border p-2 rounded bg-white"></select></div>
+                     <div><label class="block text-sm font-bold text-gray-700">عمود النوع (Type):</label><select id="wc_type" class="w-full border p-2 rounded bg-white"></select></div>
+                     <div><label class="block text-sm font-bold text-gray-700">عمود اللون (Color):</label><select id="wc_color" class="w-full border p-2 rounded bg-white"></select></div>
+                </div>
+            </div>
+        `;
+
+            const selects = ['wc_plate', 'wc_model', 'wc_type', 'wc_color'];
+            let maxCols = 0;
+            wantedMatrix.slice(0, 15).forEach(r => maxCols = Math.max(maxCols, r.length));
+
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                el.innerHTML = '<option value="-1">-- غير محدد --</option>';
+                for (let i = 0; i < maxCols; i++) {
+                    const sample = wantedMatrix[0] ? wantedMatrix[0][i] : "";
+                    const letter = XLSX.utils.encode_col(i);
+                    el.add(new Option(`العمود ${letter} (${String(sample).substring(0, 15)})`, i));
+                }
+            });
+
+            // Smart Guessing for Wanted
+            let bestPlate = -1, bestModel = -1, bestType = -1, bestColor = -1;
+
+            for (let col = 0; col < maxCols; col++) {
+                // 1. Plate Detection
+                let plateScore = 0;
+                for (let r = 0; r < Math.min(50, wantedMatrix.length); r++) {
+                    const cell = String(wantedMatrix[r][col] || "");
+                    const cleaned = cleanPlate(cell);
+                    if (cleaned.length > 2 && /[0-9]/.test(cleaned) && /[\u0600-\u06FF]/.test(cleaned)) plateScore++;
+                }
+                if (plateScore > 5 && bestPlate === -1) bestPlate = col;
+
+                // 2. Header Keywords Detection (for defaults, user can change)
+                const header = String(wantedMatrix[0][col] || "").toLowerCase();
+                if (header.includes("موديل") || header.includes("مارك") || header.includes("model") || header.includes("brand")) bestModel = col;
+                else if (header.includes("نوع") || header.includes("type")) bestType = col;
+                else if (header.includes("لون") || header.includes("color")) bestColor = col;
+            }
+
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+
+            if (bestPlate !== -1) setVal('wc_plate', bestPlate);
+            if (bestModel !== -1) setVal('wc_model', bestModel);
+            if (bestType !== -1) setVal('wc_type', bestType);
+            if (bestColor !== -1) setVal('wc_color', bestColor);
+
+            // Hide Legacy Elements
+            document.getElementById('autoDetectSummary').innerText = "";
+            document.getElementById('manualExtraConfig').classList.add('hidden');
+            const btn = document.querySelector('button[onclick="toggleManualConfig()"]');
+            if (btn) btn.style.display = 'none';
+        }
+
+
+        // --- 3. Robust Cleaning ---
+        function cleanPlate(input) {
+            if (!input) return "";
+            let str = String(input).trim();
+            str = str.replace(/[\u064B-\u065F\u0640]/g, '');
+            str = str.replace(/[أإآ]/g, 'ا').replace(/[ة]/g, 'ه').replace(/[ى]/g, 'ي');
+            const map = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9" };
+            str = str.replace(/[٠-٩]/g, m => map[m]);
+            const letters = (str.match(/[\u0600-\u06FF]+/g) || []).join("");
+            const digits = (str.match(/[0-9]+/g) || []).join("");
+            return letters + digits;
+        }
+
+        function formatExcelDate(serial) {
+            if (!serial) return "";
+            if (typeof serial !== 'number') return serial;
+            if (serial > 20000) {
+                const date = new Date((serial - 25569) * 86400 * 1000);
+                const day = date.getDate().toString().padStart(2, '0');
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}/${month}/${year}`;
+            }
+            return serial;
+        }
+
+        // --- 4. Matching ---
+        window.runMatch = function () {
+            const mc_plate = parseInt(getVal('mc_plate'));
+            if (mc_plate === -1) { alert("يجب تحديد عمود اللوحة في ملف الداتا!"); return; }
+
+            // HARDCODED INDICES for Master Data as per User implication ("Standard Sheet")
+            // Assumed: 0=Plate, 1=??, 2=Type, 3=Note, 4=Street, 5=District, 6=Date, 7=Delegate
+            const mcIndices = {
+                type: 2,
+                note: 3,
+                street: 4,
+                district: 5,
+                date: 6,
+                delegate: 7
+            };
+
+            const wc_plate = parseInt(getVal('wc_plate'));
+            if (wc_plate === -1) { alert("يجب تحديد عمود اللوحة في ملف المطلوبين!"); return; }
+
+            const wcIndices = {
+                model: parseInt(getVal('wc_model')),
+                type: parseInt(getVal('wc_type')),
+                color: parseInt(getVal('wc_color'))
+            };
+
+            setStatus('جاري الفرز...', 'text-blue-600');
+            const btn = document.getElementById('runBtn');
+            const spinner = document.getElementById('spinner');
+            btn.disabled = true; spinner.style.display = 'block';
+
+            setTimeout(() => {
+                masterMap.clear();
+                for (let r = 0; r < masterMatrix.length; r++) {
+                    const row = masterMatrix[r];
+                    const rawPlate = row[mc_plate];
+                    if (!rawPlate) continue;
+
+                    const key = cleanPlate(rawPlate);
+                    if (key.length >= 2) {
+                        if (!masterMap.has(key)) masterMap.set(key, []);
+                        masterMap.get(key).push(row);
+                    }
+                }
+
+                let foundList = [];
+
+                // Iterate Wanted
+                wantedMatrix.forEach(wRow => {
+                    const rawWPlate = wRow[wc_plate];
+                    const key = cleanPlate(rawWPlate);
+
+                    if (key && masterMap.has(key)) {
+                        const mRows = masterMap.get(key);
+                        const wModel = (wcIndices.model !== -1) ? (wRow[wcIndices.model] || "") : "";
+                        const wType = (wcIndices.type !== -1) ? (wRow[wcIndices.type] || "") : "";
+                        const wColor = (wcIndices.color !== -1) ? (wRow[wcIndices.color] || "") : "";
+
+                        mRows.forEach(mRow => {
+                            foundList.push({
+                                plate: mRow[mc_plate],
+                                wantedModel: wModel,
+                                wantedType: wType,
+                                wantedColor: wColor,
+                                // Using HARDCODED Master Indices
+                                masterType: mRow[mcIndices.type] || "",
+                                note: mRow[mcIndices.note] || "",
+                                street: mRow[mcIndices.street] || "",
+                                district: mRow[mcIndices.district] || "",
+                                date: formatExcelDate(mRow[mcIndices.date]),
+                                delegate: mRow[mcIndices.delegate] || ""
+                            });
+                        });
+                    }
+                });
+
+                foundList.sort((a, b) => String(a.district).localeCompare(String(b.district), "ar"));
+
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                setStatus(`تمت العملية. تم العثور على ${foundList.length} تطابق (شامل التكرار).`, 'text-green-600');
+                document.getElementById('resultBox').classList.remove('hidden');
+                document.getElementById('resultCount').innerText = `تم العثور على ${foundList.length} سيارة`;
+                window.finalResults = foundList;
+
+            }, 100);
+        };
+
+        window.downloadResults = function () {
+            if (!window.finalResults || window.finalResults.length === 0) return;
+
+            const exportData = window.finalResults.map(item => ({
+                "اللوحة": item.plate,
+                "الماركة (المطلوبين)": item.wantedModel,
+                "النوع (المطلوبين)": item.wantedType,
+                "النوع (الداتا)": item.masterType,
+                "اللون": item.wantedColor,
+                "الملاحظة": item.note,
+                "الشارع": item.street,
+                "الحي": item.district,
+                "التاريخ": item.date,
+                "اسم المندوب": item.delegate
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            const headerStyle = {
+                font: { name: "Arial", sz: 14, bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "4F81BD" } },
+                alignment: { horizontal: "center", vertical: "center" },
+                border: { top: { style: "thick" }, bottom: { style: "thick" }, left: { style: "thick" }, right: { style: "thick" } }
+            };
+
+            if (ws['!ref']) {
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const addr = XLSX.utils.encode_cell({ r: 0, c: C });
+                    if (ws[addr]) ws[addr].s = headerStyle;
+                }
+                ws['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 12 }, { wch: 20 }];
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "النتائج");
+            XLSX.writeFile(wb, "تقرير_المطابقة_الشامل.xlsx");
+        };
+
+        function setStatus(txt, cls) {
+            document.getElementById('mainStatus').className = `mt-4 font-bold text-sm ${cls}`;
+            document.getElementById('mainStatus').innerText = txt;
+        }    </script>
+</body>
+
+</html>
